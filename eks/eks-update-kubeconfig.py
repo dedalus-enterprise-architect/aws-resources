@@ -1,0 +1,42 @@
+import configparser
+import boto3
+import botocore
+import os
+
+# Get the directory containing the script
+script_dir = os.path.dirname(os.path.realpath(__file__))
+
+# Load parameters from config.ini
+config = configparser.ConfigParser()
+config.read(os.path.join(script_dir, 'config.ini'))
+profile_name = config.get("settings", "aws_session_profile")
+role_arn = config.get("settings", "aws_role_arn")
+cluster_name = config.get("settings", "eks_cluster_name")
+
+def update_eks_kubeconfig(role_arn, cluster_name, profile_name):
+    # Load AWS credentials and config files
+    session = boto3.session.Session(profile_name=profile_name)
+    creds = session.get_credentials()
+    access_key = creds.access_key
+    secret_key = creds.secret_key
+    region = session.region_name
+
+    # Assume the role
+    sts_client = boto3.client('sts',
+                             aws_access_key_id=access_key,
+                             aws_secret_access_key=secret_key,
+                             region_name=region)
+    assumed_role = sts_client.assume_role(RoleArn=role_arn, RoleSessionName="UpdateEksKubeconfigSession")
+    assumed_creds = assumed_role['Credentials']
+
+    # Update the EKS kubeconfig file
+    eks_client = boto3.client('eks',
+                             aws_access_key_id=assumed_creds['AccessKeyId'],
+                             aws_secret_access_key=assumed_creds['SecretAccessKey'],
+                             aws_session_token=assumed_creds['SessionToken'],
+                             region_name=region)
+    response = eks_client.update_kubeconfig(name=cluster_name)
+    print(f"EKS kubeconfig file updated for cluster '{cluster_name}'")
+
+# Example usage
+update_eks_kubeconfig(role_arn, cluster_name)
