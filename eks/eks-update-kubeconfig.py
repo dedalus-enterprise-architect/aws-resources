@@ -39,4 +39,4 @@ def update_eks_kubeconfig(role_arn, cluster_name, profile_name):
     print(f"EKS kubeconfig file updated for cluster '{cluster_name}'")
 
 # Example usage
-update_eks_kubeconfig(role_arn, cluster_name)
+update_eks_kubeconfig(role_arn, cluster_name, profile_name)
