@@ -1,8 +1,8 @@
 import configparser
 import boto3
 import botocore
+import eks_token
 import os
-import subprocess
 
 # Get the directory containing the script
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -21,17 +21,16 @@ def update_eks_kubeconfig(role_arn, cluster_name, profile_name):
     access_key = creds.access_key
     secret_key = creds.secret_key
     region = session.region_name
-
+    
     # Assume the role
-    sts_client = boto3.client('sts',
-                             aws_access_key_id=access_key,
-                             aws_secret_access_key=secret_key,
-                             region_name=region)
-    assumed_role = sts_client.assume_role(RoleArn=role_arn, RoleSessionName="UpdateEksKubeconfigSession")
-    assumed_creds = assumed_role['Credentials']
+    assumed_creds = eks_token.assume_role(role_arn)
 
-    # Update the EKS kubeconfig file using the AWS CLI
-    subprocess.run(["aws", "eks", "update-kubeconfig", "--name", cluster_name, "--role-arn", role_arn, "--access-key", assumed_creds['AccessKeyId'], "--secret-key", assumed_creds['SecretAccessKey'], "--session-token", assumed_creds['SessionToken']], check=True)
+    # Save assumed credentials to the local AWS CLI credentials and config files
+    eks_token.write_aws_credentials(assumed_creds, profile_name='eks_assumed')
+    eks_token.write_aws_config(region=session.region_name, profile_name='eks_assumed')
+
+    # Update the EKS kubeconfig file
+    eks_token.update_kubeconfig(cluster_name=cluster_name, profile_name='eks_assumed')
     print(f"EKS kubeconfig file updated for cluster '{cluster_name}'")
 
 # Example usage
