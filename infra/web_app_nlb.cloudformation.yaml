@@ -1,0 +1,271 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template to provision EC2 instances in ASGs for web and app tiers with optional internal NLBs using TCP listeners and configurable volume size.'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where the EC2 instances will be launched
+
+  WebInstanceCount:
+    Type: Number
+    Description: Desired number of EC2 instances for the web tier
+    MinValue: 1
+
+  AppInstanceCount:
+    Type: Number
+    Description: Desired number of EC2 instances for the app tier
+    MinValue: 1
+
+  WebPrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private Subnet IDs for the web tier instances and NLB (if enabled)
+
+  AppPrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private Subnet IDs for the app tier instances and NLB (if enabled)
+
+  WebSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group ID for the web tier instances
+
+  AppSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group ID for the app tier instances
+
+  SSHKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of the SSH key pair for EC2 instances
+
+  WebInstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type for web tier
+
+  AppInstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type for app tier
+
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI ID for the EC2 instances
+
+  DeviceName:
+    Type: String
+    Default: /dev/sda1
+    Description: "EBS device name. Ex. for Amazon Linux set this field as /dev/xvda, for Oracle Linux set as /dev/sda1"
+
+  WebNamePattern:
+    Type: String
+    Description: Name pattern for web tier instances (e.g., 'web-server-')
+    Default: 'web-server-'
+
+  AppNamePattern:
+    Type: String
+    Description: Name pattern for app tier instances (e.g., 'app-server-')
+    Default: 'app-server-'
+
+  ProvisionWebNLB:
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
+    Description: Whether to provision an internal Network Load Balancer for the web tier
+
+  ProvisionAppNLB:
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
+    Description: Whether to provision an internal Network Load Balancer for the app tier
+
+  WebNLBTCPPort:
+    Type: Number
+    Default: 80
+    Description: TCP port for Web NLB listener (if NLB is enabled)
+
+  WebInstanceTCPPort:
+    Type: Number
+    Default: 80
+    Description: TCP port on web instances for NLB target group
+
+  AppNLBTCPPort:
+    Type: Number
+    Default: 8080
+    Description: TCP port for App NLB listener (if NLB is enabled)
+
+  AppInstanceTCPPort:
+    Type: Number
+    Default: 8080
+    Description: TCP port on app instances for NLB target group
+
+  VolumeSize:
+    Type: Number
+    Description: Volume size for EC2 instances (in GB)
+    Default: 8
+
+Conditions:
+  CreateWebNLB: !Equals [!Ref ProvisionWebNLB, true]
+  CreateAppNLB: !Equals [!Ref ProvisionAppNLB, true]
+
+Resources:
+  WebLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref AmiId
+        InstanceType: !Ref WebInstanceType
+        KeyName: !Ref SSHKeyName
+        SecurityGroupIds: 
+          - !Ref WebSecurityGroupId
+        BlockDeviceMappings:
+          - DeviceName: !Ref DeviceName    # Dynamically set based on user input
+            Ebs:
+              VolumeSize: !Ref VolumeSize  # Volume size as input
+              VolumeType: gp3
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub ${WebNamePattern}${AWS::StackName}
+
+  WebASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref WebPrivateSubnetIds
+      LaunchTemplate:
+        LaunchTemplateId: !Ref WebLaunchTemplate
+        Version: !GetAtt WebLaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: !Ref WebInstanceCount
+      DesiredCapacity: !Ref WebInstanceCount
+      TargetGroupARNs: 
+        !If 
+          - CreateWebNLB
+          - [!Ref WebNLBTCPTargetGroup]
+          - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-web-asg
+          PropagateAtLaunch: true
+
+  AppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref AmiId
+        InstanceType: !Ref AppInstanceType
+        KeyName: !Ref SSHKeyName
+        SecurityGroupIds: 
+          - !Ref AppSecurityGroupId
+        BlockDeviceMappings:
+          - DeviceName: !Ref DeviceName   # Dynamically set based on user input
+            Ebs:
+              VolumeSize: !Ref VolumeSize # Volume size as input
+              VolumeType: gp3
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub ${AppNamePattern}${AWS::StackName}
+
+  AppASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref AppPrivateSubnetIds
+      LaunchTemplate:
+        LaunchTemplateId: !Ref AppLaunchTemplate
+        Version: !GetAtt AppLaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: !Ref AppInstanceCount
+      DesiredCapacity: !Ref AppInstanceCount
+      TargetGroupARNs: 
+        !If 
+          - CreateAppNLB
+          - [!Ref AppNLBTCPTargetGroup]
+          - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-app-asg
+          PropagateAtLaunch: true
+
+  WebNLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Condition: CreateWebNLB
+    Properties:
+      Type: network
+      Subnets: !Ref WebPrivateSubnetIds
+      Scheme: internal
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-web-nlb
+
+  WebNLBTCPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: CreateWebNLB
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebNLBTCPTargetGroup
+      LoadBalancerArn: !Ref WebNLB
+      Port: !Ref WebNLBTCPPort
+      Protocol: TCP
+
+  WebNLBTCPTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: CreateWebNLB
+    Properties:
+      HealthCheckProtocol: TCP
+      Port: !Ref WebInstanceTCPPort
+      Protocol: TCP
+      TargetType: instance
+      VpcId: !Ref VpcId
+
+  AppNLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Condition: CreateAppNLB
+    Properties:
+      Type: network
+      Subnets: !Ref AppPrivateSubnetIds
+      Scheme: internal
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-app-nlb
+
+  AppNLBTCPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: CreateAppNLB
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AppNLBTCPTargetGroup
+      LoadBalancerArn: !Ref AppNLB
+      Port: !Ref AppNLBTCPPort
+      Protocol: TCP
+
+  AppNLBTCPTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: CreateAppNLB
+    Properties:
+      HealthCheckProtocol: TCP
+      Port: !Ref AppInstanceTCPPort
+      Protocol: TCP
+      TargetType: instance
+      VpcId: !Ref VpcId
+
+Outputs:
+  WebASGName:
+    Description: Name of the Web Tier Auto Scaling Group
+    Value: !Ref WebASG
+
+  AppASGName:
+    Description: Name of the App Tier Auto Scaling Group
+    Value: !Ref AppASG
+
+  WebNLBDNSName:
+    Description: DNS name of the Web NLB
+    Condition: CreateWebNLB
+    Value: !GetAtt WebNLB.DNSName
+
+  AppNLBDNSName:
+    Description: DNS name of the App NLB
+    Condition: CreateAppNLB
+    Value: !GetAtt AppNLB.DNSName
