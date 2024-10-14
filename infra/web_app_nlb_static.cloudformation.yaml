@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template to provision 2 web instances and 3 app instances with incremental naming patterns and a private ELB for web instances using TCP.'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where the EC2 instances will be launched
+
+  WebPrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private Subnet IDs for the web tier instances
+
+  AppPrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private Subnet IDs for the app tier instances
+
+  WebSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group ID for the web tier instances
+
+  AppSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group ID for the app tier instances
+
+  SSHKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of the SSH key pair for EC2 instances
+
+  WebInstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type for web tier
+
+  AppInstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type for app tier
+
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI ID for the EC2 instances
+
+  DeviceName:
+    Type: String
+    Default: /dev/sda1
+    Description: "EBS device name. Ex. for Amazon Linux set this field as /dev/xvda, for Oracle Linux set as /dev/sda1"
+
+  VolumeSize:
+    Type: Number
+    Description: Volume size for EC2 instances (in GB)
+    Default: 8
+
+Resources:
+  # Web Tier Instances
+  WebInstance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref WebInstanceType
+      ImageId: !Ref AmiId
+      KeyName: !Ref SSHKeyName
+      SecurityGroupIds:
+        - !Ref WebSecurityGroupId
+      SubnetId: !Select [ 0, !Ref WebPrivateSubnetIds ]
+      BlockDeviceMappings:
+        - DeviceName: !Ref DeviceName
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${WebNamePattern}1"
+        - Key: Schedule
+          Value: stopped
+
+  WebInstance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref WebInstanceType
+      ImageId: !Ref AmiId
+      KeyName: !Ref SSHKeyName
+      SecurityGroupIds:
+        - !Ref WebSecurityGroupId
+      SubnetId: !Select [ 0, !Ref WebPrivateSubnetIds ]
+      BlockDeviceMappings:
+        - DeviceName: !Ref DeviceName
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${WebNamePattern}2"
+        - Key: Schedule
+          Value: stopped
+
+  # App Tier Instances
+  AppInstance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref AppInstanceType
+      ImageId: !Ref AmiId
+      KeyName: !Ref SSHKeyName
+      SecurityGroupIds:
+        - !Ref AppSecurityGroupId
+      SubnetId: !Select [ 0, !Ref AppPrivateSubnetIds ]
+      BlockDeviceMappings:
+        - DeviceName: !Ref DeviceName
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppNamePattern}1"
+        - Key: Schedule
+          Value: stopped
+
+  AppInstance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref AppInstanceType
+      ImageId: !Ref AmiId
+      KeyName: !Ref SSHKeyName
+      SecurityGroupIds:
+        - !Ref AppSecurityGroupId
+      SubnetId: !Select [ 0, !Ref AppPrivateSubnetIds ]
+      BlockDeviceMappings:
+        - DeviceName: !Ref DeviceName
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppNamePattern}2"
+        - Key: Schedule
+          Value: stopped
+
+  AppInstance3:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref AppInstanceType
+      ImageId: !Ref AmiId
+      KeyName: !Ref SSHKeyName
+      SecurityGroupIds:
+        - !Ref AppSecurityGroupId
+      SubnetId: !Select [ 0, !Ref AppPrivateSubnetIds ]
+      BlockDeviceMappings:
+        - DeviceName: !Ref DeviceName
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppNamePattern}3"
+        - Key: Schedule
+          Value: stopped
+
+  # Private Load Balancer for Web Instances
+  WebLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${WebNamePattern}ELB"
+      Subnets: !Ref WebPrivateSubnetIds
+      SecurityGroups:
+        - !Ref WebSecurityGroupId
+      Scheme: internal
+      Type: network  # Use Network Load Balancer for TCP
+
+  # Target Group for Web Instances
+  WebTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: TCP  # Use TCP protocol
+      TargetType: instance
+      HealthCheckProtocol: TCP
+      HealthCheckPort: 80
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2
+      Targets:
+        - Id: !Ref WebInstance1
+        - Id: !Ref WebInstance2
+
+  # Listener for TCP on port 80
+  WebListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref WebLoadBalancer
+      Port: 80
+      Protocol: TCP  # Use TCP protocol
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebTargetGroup
+
+  # Listener for TCP on port 443
+  WebListener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref WebLoadBalancer
+      Port: 443
+      Protocol: TCP  # Use TCP protocol
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebTargetGroup
+
+Outputs:
+  InstanceDetails:
+    Description: "EC2 Instances and ELB Details in CSV format"
+    Value: !Sub |
+      Name,ID,Private IP Address
+      ${WebNamePattern}1,!Ref WebInstance1,!GetAtt WebInstance1.PrivateIp
+      ${WebNamePattern}2,!Ref WebInstance2,!GetAtt WebInstance2.PrivateIp
+      ${AppNamePattern}1,!Ref AppInstance1,!GetAtt AppInstance1.PrivateIp
+      ${AppNamePattern}2,!Ref AppInstance2,!GetAtt AppInstance2.PrivateIp
+      ${AppNamePattern}3,!Ref AppInstance3,!GetAtt AppInstance3.PrivateIp
+      ELB DNS Name,!GetAtt WebLoadBalancer.DNSName,${WebLoadBalancer.PrivateIp}
