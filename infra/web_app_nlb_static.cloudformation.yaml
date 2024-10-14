@@ -45,10 +45,25 @@ Parameters:
     Default: /dev/sda1
     Description: "EBS device name. Ex. for Amazon Linux set this field as /dev/xvda, for Oracle Linux set as /dev/sda1"
 
-  VolumeSize:
+  WebVolumeSize:
     Type: Number
-    Description: Volume size for EC2 instances (in GB)
+    Description: Volume size for web EC2 instances (in GB)
     Default: 8
+
+  AppVolumeSize:
+    Type: Number
+    Description: Volume size for app EC2 instances (in GB)
+    Default: 8
+
+  WebNamePattern:
+    Type: String
+    Description: Name pattern for web tier instances (e.g., 'web-server-')
+    Default: 'web-server-'
+
+  AppNamePattern:
+    Type: String
+    Description: Name pattern for app tier instances (e.g., 'app-server-')
+    Default: 'app-server-'
 
 Resources:
   # Web Tier Instances
@@ -64,13 +79,14 @@ Resources:
       BlockDeviceMappings:
         - DeviceName: !Ref DeviceName
           Ebs:
-            VolumeSize: !Ref VolumeSize
+            VolumeSize: !Ref WebVolumeSize
+            VolumeType: gp3  # Default volume type set to gp3
             DeleteOnTermination: true
       Tags:
         - Key: Name
           Value: !Sub "${WebNamePattern}1"
         - Key: Schedule
-          Value: stopped
+          Value: ""  # Schedule tag with no value
 
   WebInstance2:
     Type: AWS::EC2::Instance
@@ -84,13 +100,14 @@ Resources:
       BlockDeviceMappings:
         - DeviceName: !Ref DeviceName
           Ebs:
-            VolumeSize: !Ref VolumeSize
+            VolumeSize: !Ref WebVolumeSize
+            VolumeType: gp3  # Default volume type set to gp3
             DeleteOnTermination: true
       Tags:
         - Key: Name
           Value: !Sub "${WebNamePattern}2"
         - Key: Schedule
-          Value: stopped
+          Value: ""  # Schedule tag with no value
 
   # App Tier Instances
   AppInstance1:
@@ -105,13 +122,14 @@ Resources:
       BlockDeviceMappings:
         - DeviceName: !Ref DeviceName
           Ebs:
-            VolumeSize: !Ref VolumeSize
+            VolumeSize: !Ref AppVolumeSize
+            VolumeType: gp3  # Default volume type set to gp3
             DeleteOnTermination: true
       Tags:
         - Key: Name
           Value: !Sub "${AppNamePattern}1"
         - Key: Schedule
-          Value: stopped
+          Value: ""  # Schedule tag with no value
 
   AppInstance2:
     Type: AWS::EC2::Instance
@@ -125,13 +143,14 @@ Resources:
       BlockDeviceMappings:
         - DeviceName: !Ref DeviceName
           Ebs:
-            VolumeSize: !Ref VolumeSize
+            VolumeSize: !Ref AppVolumeSize
+            VolumeType: gp3  # Default volume type set to gp3
             DeleteOnTermination: true
       Tags:
         - Key: Name
           Value: !Sub "${AppNamePattern}2"
         - Key: Schedule
-          Value: stopped
+          Value: ""  # Schedule tag with no value
 
   AppInstance3:
     Type: AWS::EC2::Instance
@@ -145,13 +164,14 @@ Resources:
       BlockDeviceMappings:
         - DeviceName: !Ref DeviceName
           Ebs:
-            VolumeSize: !Ref VolumeSize
+            VolumeSize: !Ref AppVolumeSize
+            VolumeType: gp3  # Default volume type set to gp3
             DeleteOnTermination: true
       Tags:
         - Key: Name
           Value: !Sub "${AppNamePattern}3"
         - Key: Schedule
-          Value: stopped
+          Value: ""  # Schedule tag with no value
 
   # Private Load Balancer for Web Instances
   WebLoadBalancer:
@@ -213,4 +233,4 @@ Outputs:
       ${AppNamePattern}1,!Ref AppInstance1,!GetAtt AppInstance1.PrivateIp
       ${AppNamePattern}2,!Ref AppInstance2,!GetAtt AppInstance2.PrivateIp
       ${AppNamePattern}3,!Ref AppInstance3,!GetAtt AppInstance3.PrivateIp
-      ELB DNS Name,!GetAtt WebLoadBalancer.DNSName,${WebLoadBalancer.PrivateIp}
+      ELB DNS Name,!GetAtt WebLoadBalancer.DNSName,!GetAtt WebLoadBalancer.PrivateIp
