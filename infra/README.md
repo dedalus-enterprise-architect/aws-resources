@@ -7,6 +7,7 @@ Below is a list of available templates along with links to their individual READ
 | Template Name                                | Description                                                                               | Link                                     |
 |----------------------------------------------|-------------------------------------------------------------------------------------------|------------------------------------------|
 | **EC2 ASG with NLBs**                       | Provision EC2 instances in Auto Scaling Groups with optional internal Network Load Balancers. | [View README](./web_app_nlb.cloudformation.README.md) |
+| **2 Web, 3 App and 1 NLB, all static**                       | Provision EC2 instances statically with  internal Network Load Balancer. | [View README](./2web_3app_1nlb_static.cloudformation.yaml) |
 
 ## How to Use
 
