@@ -104,10 +104,10 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       CidrBlock: !Ref PrivateSubnet2Cidr
-      AvailabilityZone: !Select [0, !GetAZs '']
+      AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-fe-private-1a"
+          Value: !Sub "${VpcName}-fe-private-1b"
   PrivateSubnet3:
     Type: AWS::EC2::Subnet
     Properties:
@@ -131,10 +131,10 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       CidrBlock: !Ref PrivateSubnet5Cidr
-      AvailabilityZone: !Select [1, !GetAZs '']
+      AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-data-private-1b"
+          Value: !Sub "${VpcName}-data-private-1a"
   PrivateSubnet6:
     Type: AWS::EC2::Subnet
     Properties:
