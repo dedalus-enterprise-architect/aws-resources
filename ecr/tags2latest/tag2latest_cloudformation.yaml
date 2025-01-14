@@ -1,0 +1,155 @@
+# =======================================
+# AUTHOR        : Claudio Prato @ Team EA
+# CREATE DATE   : 2024/12/10
+# PURPOSE       : The primary purpose is to ensure that the latest image push matches the tag "latest"
+# SPECIAL NOTES : 
+# =======================================
+
+# CloudFormation template: EventBridge Rule, IAM role, Lambda
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template aimed for managing the TAG on AWS ECR by leveraging the EventBridge and Lambda objects
+
+Parameters:
+  RepositoryNames:
+    Type: List<String>
+    Description: List of repository name to monitor by the EventBridge
+    Default:
+      - products/smart-hospital/cms-backoffice
+      - products/smart-hospital/cms-webapp
+      - products/smart-hospital/cms-server
+
+Resources:
+  # EventBridge Rule
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: anoki_push_latest_on_smarthospital
+      EventPattern:
+        source:
+          - aws.ecr
+        detail-type:
+          - ECR Image Action
+        detail:
+          action-type:
+            - PUSH
+          result:
+            - SUCCESS
+          repository-name:
+            Fn::Join:
+              - ""
+              - [
+                  "[",
+                  {"Fn::Join": [",", {"Fn::Split": [",", {"Fn::Join": [",", {"Ref": "RepositoryNames"}]}]}]},
+                  "]"
+                ]
+      State: ENABLED
+      Description: "The last image push must match by the TAG: latest"
+      EventBusName: default
+      Targets:
+        - Id: LambdaTarget
+          Arn:
+            Fn::GetAtt:
+              - LambdaFunction
+              - Arn
+
+  # Lambda Function
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ecr_update_to_latest_onPush
+      Handler: index.lambda_handler
+      Runtime: python3.9
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRole
+          - Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def lambda_handler(event, context):
+              try:
+                  repository_name = event['detail']['repository-name']
+                  image_digest = event['detail']['image-digest']
+                  image_tag = event['detail'].get('image-tag')
+              except KeyError as e:
+                  logger.error(f"Missing required event detail: {str(e)}")
+                  return {'statusCode': 400, 'body': f'Missing required event detail: {str(e)}'}
+
+              if image_tag == 'latest':
+                  logger.info("Skipping event for 'latest' tag to prevent loop.")
+                  return {'statusCode': 200, 'body': "Skipped processing for 'latest' tag."}
+
+              ecr_client = boto3.client('ecr')
+              try:
+                  response = ecr_client.batch_get_image(
+                      repositoryName=repository_name,
+                      imageIds=[{'imageDigest': image_digest}]
+                  )
+                  images = response.get('images', [])
+                  if not images:
+                      raise ValueError(f"Image with digest '{image_digest}' not found in repository '{repository_name}'.")
+
+                  image_manifest = images[0]['imageManifest']
+                  logger.info(f"Retrieved manifest for image with digest {image_digest}.")
+
+                  existing_images = ecr_client.list_images(
+                      repositoryName=repository_name,
+                      filter={'tagStatus': 'TAGGED'}
+                  ).get('imageIds', [])
+
+                  for img in existing_images:
+                      if img.get('imageTag') == 'latest':
+                          ecr_client.batch_delete_image(
+                              repositoryName=repository_name,
+                              imageIds=[{'imageTag': 'latest'}]
+                          )
+                          logger.info("Existing image with tag 'latest' deleted successfully.")
+                          break
+
+                  ecr_client.put_image(
+                      repositoryName=repository_name,
+                      imageManifest=image_manifest,
+                      imageTag='latest'
+                  )
+                  logger.info(f"Successfully updated image with digest {image_digest} to tag 'latest'.")
+
+              except ecr_client.exceptions.ImageNotFoundException:
+                  logger.error(f"Image with digest {image_digest} not found in repository {repository_name}.")
+              except ecr_client.exceptions.RepositoryNotFoundException:
+                  logger.error(f"Repository {repository_name} not found.")
+              except ValueError as ve:
+                  logger.error(str(ve))
+              except Exception as e:
+                  logger.error(f"Unexpected error: {str(e)}")
+
+              return {'statusCode': 200, 'body': 'Image tag update process completed.'}
+
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LambdaExecutionRoleForECR
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ECRPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:BatchGetImage
+                  - ecr:PutImage
+                  - ecr:BatchDeleteImage
+                  - ecr:ListImages
+                Resource: arn:aws:ecr:eu-west-1:350801433917:repository/products/smart-hospital/*
