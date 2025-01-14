@@ -78,7 +78,7 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-public-1a"
+          Value: !Sub "${VpcName}-fe-public-1a"
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -87,7 +87,7 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-public-1b"
+          Value: !Sub "${VpcName}-fe-public-1b"
 
   # Private Subnets (3 in AZ-A, 3 in AZ-B)
   PrivateSubnet1:
@@ -98,7 +98,7 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-private-1a"
+          Value: !Sub "${VpcName}-fe-private-1a"
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -107,7 +107,7 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-private-1a"
+          Value: !Sub "${VpcName}-fe-private-1a"
   PrivateSubnet3:
     Type: AWS::EC2::Subnet
     Properties:
@@ -116,7 +116,7 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-private-1a"
+          Value: !Sub "${VpcName}-application-private-1a"
   PrivateSubnet4:
     Type: AWS::EC2::Subnet
     Properties:
@@ -125,7 +125,7 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-private-1b"
+          Value: !Sub "${VpcName}-application-private-1b"
   PrivateSubnet5:
     Type: AWS::EC2::Subnet
     Properties:
@@ -134,7 +134,7 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-private-1b"
+          Value: !Sub "${VpcName}-data-private-1b"
   PrivateSubnet6:
     Type: AWS::EC2::Subnet
     Properties:
@@ -143,7 +143,7 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-private-1b"
+          Value: !Sub "${VpcName}-data-private-1b"
 
   # Internet Gateway (optional)
   InternetGateway:
@@ -177,7 +177,7 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-nat"
+          Value: !Sub "${VpcName}-natgw"
 
   # Route Tables
   PublicRouteTable:
