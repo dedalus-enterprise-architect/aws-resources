@@ -7,7 +7,7 @@ Parameters:
     Description: Name of the VPC
   VpcCidr:
     Type: String
-    Default: 172.20.0.0/16
+    Default: 172.30.0.0/16
     Description: CIDR block for the VPC
   CreateInternetGateway:
     Type: String
@@ -23,37 +23,37 @@ Parameters:
   # Public Subnet CIDR parameters
   PublicSubnet1Cidr:
     Type: String
-    Default: 172.20.0.0/24
+    Default: 172.30.0.0/24
     Description: CIDR block for Public Subnet 1 in AZ-A
   PublicSubnet2Cidr:
     Type: String
-    Default: 172.20.1.0/24
+    Default: 172.30.1.0/24
     Description: CIDR block for Public Subnet 2 in AZ-B
 
   # Private Subnet CIDR parameters (3 per AZ)
   PrivateSubnet1Cidr:
     Type: String
-    Default: 172.20.2.0/24
+    Default: 172.30.2.0/24
     Description: CIDR block for Private Subnet 1 in AZ-A
   PrivateSubnet2Cidr:
     Type: String
-    Default: 172.20.3.0/24
+    Default: 172.30.3.0/24
     Description: CIDR block for Private Subnet 2 in AZ-A
   PrivateSubnet3Cidr:
     Type: String
-    Default: 172.20.4.0/24
+    Default: 172.30.4.0/24
     Description: CIDR block for Private Subnet 3 in AZ-A
   PrivateSubnet4Cidr:
     Type: String
-    Default: 172.20.5.0/24
+    Default: 172.30.5.0/24
     Description: CIDR block for Private Subnet 4 in AZ-B
   PrivateSubnet5Cidr:
     Type: String
-    Default: 172.20.6.0/24
+    Default: 172.30.6.0/24
     Description: CIDR block for Private Subnet 5 in AZ-B
   PrivateSubnet6Cidr:
     Type: String
-    Default: 172.20.7.0/24
+    Default: 172.30.7.0/24
     Description: CIDR block for Private Subnet 6 in AZ-B
 
 Conditions:
@@ -78,7 +78,7 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-fe-public-1a"
+          Value: !Sub "${VpcName}-frontend-public-1a"
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -87,7 +87,7 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-fe-public-1b"
+          Value: !Sub "${VpcName}-frontend-public-1b"
 
   # Private Subnets (3 in AZ-A, 3 in AZ-B)
   PrivateSubnet1:
@@ -98,7 +98,7 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-fe-private-1a"
+          Value: !Sub "${VpcName}-frontend-private-1a"
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -107,7 +107,7 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
-          Value: !Sub "${VpcName}-fe-private-1b"
+          Value: !Sub "${VpcName}-frontend-private-1b"
   PrivateSubnet3:
     Type: AWS::EC2::Subnet
     Properties:
